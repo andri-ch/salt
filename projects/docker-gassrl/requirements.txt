@@ -1,0 +1,6 @@
+greenlet
+eventlet
+gunicorn
+psycopg2
+south
+django>=1.6

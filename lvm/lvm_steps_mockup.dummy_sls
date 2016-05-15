@@ -1,0 +1,286 @@
+# setup lvm2 and create the needed logical volumes(LVs)
+
+### Check needed cmds exist ###
+#check_resize2fs:                               # ID declaration
+#  cmd:                                         # state declaration, its line is not started with '-'  
+#    - run                                      # function delaration
+#    - name: apt-get install e2fsprogs          # function arg declaration; execute named cmd
+#    - unless: which resize2fs                  # if `which resize2fs` returns false, run `apt-get install e2fsprogs`
+#    - require:                                 # ensure state check_fdisk is executed first
+#      - cmd: check_fdisk
+
+# this can be written more easily:
+#e2fsprogs:
+#  pkg:
+#    - installed
+
+# or for all packages:
+#utilities:
+#  pkg.installed:
+#    - pkgs:
+#      - e2fsprogs                  # resize2fs
+#      - util-linux                 # fdisk, mkfs
+#      - parted                     # partprobe
+#      - coreutils                  # chroot
+
+
+#check_fdisk:
+#  cmd.run:
+#    - name: apt-get install util-linux
+#    - unless: which fdisk 
+#    - require:
+#      - cmd: check_partprobe 
+#
+#check_partprobe:
+#  cmd:
+#    - run
+#    - name: apt-get install parted
+#    - unless: which partprobe 
+#    - require: 
+#      - cmd: check_chroot  
+#
+#check_chroot:
+#  cmd.run:
+#    - name: apt-get install coreutils
+#    - unless: which chroot
+#    - require:
+#      - cmd: check_mkfs
+#
+#check_mkfs:
+#  cmd.run:
+#    - name: apt-get install util-linux
+#    - unless: which mkfs
+#
+
+#### Resize first partition ###
+## resize filesystem first
+## Remember, /dev/xvdb is the harddisk, as used by fdisk, /dev/xvdb1 is the first partition on it
+#resize_fs:
+#  cmd.run:
+#    - name: resize2fs /dev/xvdb1 1500M
+#    - require:
+#      - file: /dev/xvdb1
+##      - cmd: check_resize2fs
+#      - pkg: utilities
+#
+## resize partition, make it slightly larger than filesystem
+#shrink_partition:
+#  cmd.run:
+#    - name: echo -e "n\np\n1\n\n+1510M\nw" | fdisk /dev/xvdb
+#    # n -> add a new partition, \n -> newline, p - primary one, 1 - make it the first part.,
+#    # empty lines mean 'choose default', +1510M - size of partition, write changes to disk
+#    - require:
+#      - cmd: resize_fs
+#
+#### Create Linux LVM primary partition ###
+## you create a regular partition first, then change it to lvm
+#create_lvm_part:
+#  cmd.run:
+#    - name: echo -e "n\np\n2\n\n\nt 2\nw" | fdisk /dev/xvdb
+#    # t 2  - change partition's type to Linux LVM
+#    - require:
+#      - cmd: shrink_partition
+#
+## read the partition table without restarting
+#read_part_table:
+#  cmd.run:
+#    - name: partprobe -s /dev/xvdb             # read partition table only of /dev/xvdb
+#    # might not list all the partitions, but you can see them with:
+#    # sudo fdisk -l
+#    - require:
+#      - cmd: create_lvm_part
+#
+#### DEBUG ###
+##list_part_table:
+##  cmd.run:
+##    - name: fdisk -l
+##    - require: 
+##      - cmd: read_part_table
+#
+#mount_dev_xvdb1:            # after creating lvm partition, /dev/xvdb1 will contain / filesystem
+#  cmd.run:
+#    - name: mount /dev/xvdb1 /mnt
+#    - require:
+#      - cmd: read_part_table
+
+
+#### Chroot to disabled server ###
+## all cmds will affect the disabled server
+###########################################
+#chroot_bash:
+#  cmd.run:
+#    - name: chroot /mnt            # from now on, all cmds you'll execute will affect /dev/xvdb1 filesystem?!
+#    - require:
+#      - cmd: mount_dev_xvdb1
+#
+#utilities_on_chroot:
+#  pkg.installed:
+#    - pkgs:
+#      - util-linux                 # fdisk, mkfs
+#      - coreutils                  # chroot
+#    - require:
+#      - cmd: chroot_bash
+#
+#
+#### Prepare for salt minion installation ###
+## Add the salt ppa to sources.list
+#add_salt_key:
+#  cmd.run:
+#    - name: add-apt-repository --yes ppa:saltstack/salt
+#    - require:
+#      - cmd: utilities_on_chroot
+#
+#salt-minion:
+#  pkg.installed:
+#    - require:
+#      - cmd: utilities_on_chroot
+#
+#
+#/etc/salt/minion:
+#  file.sed:
+#    - before: '^#master: salt$'
+#    - after: '^master: 50.56.223.22$'
+#    - limit: '^# retry_dns: 30$' 
+#    - require: 
+#      - pkg: salt-minion
+#  file.sed:
+#    - before: '^#id:$'
+#    - after: {{ "^id: %s"|format(grains['nodename']) }}                 # 'tester'
+## TODO: change tester to become the hostname, which by default is the name of the VM instance in the control panel
+## grains['nodename'] offers the VM name assigned from Rackspace control panel??
+#    - limit: '^# Append'
+#    - require: 
+#      - pkg: salt-minion
+#
+#lvm2:
+#  pkg.installed:
+#    - require: 
+#      - cmd: chroot_bash
+#    
+#init_pv:
+#  # init PV(physical partition)
+#  cmd.run:
+#    - name: pvcreate /dev/xvdb2
+#    - require:
+#      - pkg: lvm2
+#
+#### DEBUG ###
+## make sure your LVM harddisk is detected by Ubuntu
+#pvscan:
+#  cmd.run:
+#    - require: 
+#      - cmd: init_pv
+#
+## Create VG & add PV to volume group
+#create_vg:
+#  cmd.run:
+#    - name: vgcreate vgpool /dev/xvdb2
+#    - require:
+#      - cmd: pvscan
+#
+#### DEBUG ###
+## scan for volume groups
+##vgscan:
+##  cmd.run:
+##    - require: create_vg
+#
+## Activate VG?? When is this step necessary?
+#activate_vg:
+#  cmd.run:
+#    - name: vgchange -a y
+#    - require: 
+#      - cmd: create_vg
+
+
+#### Create logical volumes(LVs) and their filesystems ###
+#
+## define partition names and sizes
+## {'home': '600'} => 600Mb, {'tmp':'1'} => 1Gb, etc.
+#{% set partitions = {'home':'600', 'tmp':'1', 'usr':'1', 'usr_local':'1', 'var':'1', 'var_local':'1', 'var_www':'1', 'var_log':'700', 'var_spool': '780'} %}  
+#
+### take into account if Virtual Machine is 256mb => 10Gb HDD or 512mb RAM => 20Gb HDD
+#{% set RAM = 512 %}                 # RAM = 256 | 512 | 1024 | 2048 | ...
+#{% set coeff = RAM // 256 %}        # // - divide the numbers and return the truncated integer result
+## if RAM == 512 => coeff = 2  
+#
+## multiply sizes with coeff:  
+#{% for name, size in partitions.iteritems() %}
+#{%    set partitions[name] = int(size) * coeff %}
+### eg. partitions['home'] = 600 * 2 = 1200
+#{%    set partitions[name] = string(partitions[name]) %}
+#{%    if length(partitions[name]) < 3 %}        # assume no partitions larger than 99 Gb exist
+#{%        set partitions[name] = partitions[name] ~ "G" %}
+### eg.                 '20' => '20G'
+#{%    else %}
+#{%        set partitions[name] = partitions[name] ~ "M" %}
+### eg.                '700' => '700M'
+#{%    endif %}
+#{% endfor %}
+#
+#create_lvs:
+#{% for name, size in partitions %}
+#  cmd.run:
+#    - name: lvcreate -L {{ size }} -n {{ name }} vgpool     
+#    # eg: lvcreate -L 1G -n tmp vgpool
+#    - require: 
+#      - cmd: create_vg         # or activate_vg ??
+#  cmd.run:
+#    # make filesystem on lv:
+#    - name: mkfs -t ext4 /dev/vgpool/{{ name }}
+#    # eg: mkfs -t ext4 /dev/vgpool/tmp
+#{% endfor %}
+#
+#### DEBUG ###
+## Scan for logical volumes:
+#lvscan:
+#  cmd.run:
+#    - require:
+#      - cmd: create_lvs
+#
+## define mounting options
+#updated_fstab:
+#  file.managed:
+#    - name: /etc/fstab
+#    - source: salt://lvm2/fstab
+#    - user: root
+#    - group: root
+#    - mode: 644
+#    - require: 
+#      - cmd: create_lvs
+#
+#### DEBUG ###
+## list all partitions, still in chroot mode
+#fdisk -l:
+#  cmd.run:
+#    - require:
+#      - file: updated_fstab
+#
+#
+#### Copy contents from dirs over to their corresponding partition ###
+## /usr/local/* to /dev/vgpool/usr_local
+## /usr/* to /dev/vgpool/usr/*
+## Remember, /dev/vgpool/* are block files, they need to be mounted first
+#copy_contents_to_partition:
+#{% for name, size in partitions %}
+#{%     set name = name|replace("_", "/") %}
+## eg. replace _ with / for every name: if name == 'var_local' => name = 'var/local'
+#  cmd.run:
+#    - name: mount /dev/vgpool/{{ name }} /mnt
+#    - require:
+#      - cmd: create_lvs
+#  cmd.run:
+#    - name: cp -a --copy-contents /{{ name }}/* /mnt/
+#    - require:
+#      - cmd: create_lvs
+#  cmd.run:
+#    - name: rm -r /{{ name }}/*
+#    - require:
+#      - cmd: create_lvs
+#  cmd.run:
+#    - name: umount /mnt
+#    - require:
+#      - cmd: create_lvs
+#{% endfor %}
+#
+#
+#

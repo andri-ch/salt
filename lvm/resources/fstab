@@ -1,0 +1,15 @@
+proc             /proc       proc    defaults    0 0
+/dev/xvda1       /           ext3    defaults,errors=remount-ro,noatime     0 1
+/dev/xvdc1       none        swap    sw          0 0
+/dev/vgpool/home	/home	ext4	defaults    0	2
+# tmp had the options: rw,noatime,noexec,nosuid, but I can't install some 
+# programs because of noexec, nosuid
+/dev/vgpool/tmp	 /tmp	     ext4	rw,noatime	0	2
+/dev/vgpool/usr	 /usr	     ext4	defaults    0	2
+/dev/vgpool/usr_local	/usr/local	ext4	defaults	0	0
+/dev/vgpool/var	 /var	     ext4	defaults    	0	2
+/dev/vgpool/var_local	/var/local     ext4	defaults    	0	2
+/dev/vgpool/var_www	/var/www     ext4	defaults,noatime		0	0
+/dev/vgpool/var_log	/var/log     ext4	defaults,nodev,nosuid,noexec	0	2
+/dev/vgpool/var_spool	/var/spool	ext4	defaults,nodev,nosuid,noexec	0	2
+
