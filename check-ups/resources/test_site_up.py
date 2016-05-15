@@ -49,7 +49,7 @@ address = "{{ pillar['domains'] }}"
 #req = urllib2.Request('http://10.178.200.148:80/admin/')
 
 # Make a request to the internet available address:
-#req = urllib2.Request('http://50.56.180.243:80/admin/')
+#req = urllib2.Request('XXXXXXXXXX')
 
 # Make a request, using the domain name:
 #req = urllib2.Request('http://www.alinia.ro')

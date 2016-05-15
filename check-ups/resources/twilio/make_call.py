@@ -6,17 +6,17 @@ from twilio.rest import TwilioRestClient
 
 # Get these credentials from http://twilio.com/user/account
 # Test auth
-#account_sid = "AC43244174ff176d0d6b2e60e96a019f1b"
-#auth_token = "f9f0914c762476af7639014f816941ae"
+#account_sid = "XXXXXXXXXX"
+#auth_token = "XXXXXXXXXX"
 
 # Live auth    -> needed to SMS to your public, vodafone number
-account_sid = "AC506d760aa5394ffbbfe9cf91eb0e841e"
-auth_token = "4a949a6676e4d77846906add36439667"
+account_sid = "XXXXXXXXXX"
+auth_token = "XXXXXXXXXX"
 
 client = TwilioRestClient(account_sid, auth_token)
-# Make the call to="+40729814308", from_="2315773230"
-call = client.calls.create(to="+40729814308",     # Any phone number
-                           from_="2315773230",    # Must be a valid Twilio number
+# Make the call to="+XXXXXXXXXX", from_="XXXXXXXXXX"
+call = client.calls.create(to="+4072XXXXXXXXXX",     # Any phone number
+                           from_="2XXXXXXXXXX",    # Must be a valid Twilio number
                            url="http://twimlets.com/holdmusic?Bucket=com.twilio.music.ambient",
                            timeout=10)
 # for docs about .create(), check:

@@ -11,7 +11,7 @@ andrei:
     - groups: ["andrei"]            # a list of groups
     - home: /home/andrei
     - shell: /bin/bash
-    - password: "h9YnFeheJntJE"     # hashed password
+    - password: "XXXXXXXXXX"     # hashed password
     - require:
       - group: andrei
 
